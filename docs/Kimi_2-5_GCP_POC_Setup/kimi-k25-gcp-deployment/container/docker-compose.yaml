@@ -1,0 +1,173 @@
+# =============================================================================
+# Kimi K2.5 vLLM Docker Compose Configuration
+# =============================================================================
+# This Docker Compose file configures the vLLM inference server for Kimi K2.5.
+# It is designed to run on Container-Optimized OS with NVIDIA GPU support.
+#
+# Usage:
+#   docker compose up -d    # Start the server
+#   docker compose down     # Stop the server
+#   docker compose logs -f  # View logs
+# =============================================================================
+
+services:
+  vllm-server:
+    # vLLM OpenAI-compatible API server
+    image: vllm/vllm-openai:v0.11.0
+    container_name: kimi-k25-server
+    
+    # NVIDIA Container Runtime for GPU access
+    runtime: nvidia
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "${API_PORT:-8000}:${API_PORT:-8000}"
+    
+    # Environment variables
+    environment:
+      # GPU configuration
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      
+      # HuggingFace token (if needed for model access)
+      - HUGGING_FACE_HUB_TOKEN=${HUGGINGFACE_TOKEN:-}
+      
+      # Logging
+      - VLLM_LOGGING_LEVEL=INFO
+      - VLLM_LOG_LEVEL=INFO
+      
+      # Performance tuning
+      - CUDA_LAUNCH_BLOCKING=0
+      - NCCL_DEBUG=WARN
+      
+      # Python optimizations
+      - PYTHONUNBUFFERED=1
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+    
+    # Volume mounts
+    volumes:
+      # HuggingFace cache for model weights
+      - /mnt/disks/model-storage:/root/.cache/huggingface
+      
+      # Alternative model storage path
+      - /mnt/disks/model-storage:/models
+      
+      # Logs directory
+      - /var/log/vllm:/var/log/vllm
+    
+    # vLLM server command
+    command:
+      - python
+      - -m
+      - vllm.entrypoints.openai.api_server
+      # Model configuration
+      - --model=${MODEL_PATH:-moonshotai/Kimi-K2.5}
+      - --trust-remote-code
+      # Tensor parallelism (should match GPU count)
+      - --tensor-parallel-size=${TENSOR_PARALLEL:-4}
+      # Data type
+      - --dtype=bfloat16
+      # Maximum sequence length
+      - --max-model-len=32768
+      # Maximum number of sequences
+      - --max-num-seqs=256
+      # GPU memory utilization
+      - --gpu-memory-utilization=0.90
+      # Download directory
+      - --download-dir=/models
+      # Load format
+      - --load-format=auto
+      # API port
+      - --port=${API_PORT:-8000}
+      # Kimi-specific parsers
+      - --tool-call-parser=kimi_k2
+      - --reasoning-parser=kimi_k2
+      # Enable prefix caching for better performance
+      - --enable-prefix-caching
+      # Disable async output processing for stability
+      - --disable-async-output-proc
+    
+    # Resource limits and reservations
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${API_PORT:-8000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # 5 minutes for model loading
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    
+    # Ulimits for better performance
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      stack:
+        soft: 67108864
+        hard: 67108864
+    
+    # Security options
+    security_opt:
+      - seccomp:unconfined
+    
+    # IPC mode for shared memory
+    ipc: host
+    
+    # Network mode
+    network_mode: bridge
+
+  # =============================================================================
+  # Optional: Monitoring with Prometheus (uncomment to enable)
+  # =============================================================================
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: kimi-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus-data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #   restart: unless-stopped
+
+  # =============================================================================
+  # Optional: Grafana for visualization (uncomment to enable)
+  # =============================================================================
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: kimi-grafana
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana-data:/var/lib/grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - prometheus
+
+# =============================================================================
+# Volumes (for monitoring stack)
+# =============================================================================
+# volumes:
+#   prometheus-data:
+#   grafana-data:

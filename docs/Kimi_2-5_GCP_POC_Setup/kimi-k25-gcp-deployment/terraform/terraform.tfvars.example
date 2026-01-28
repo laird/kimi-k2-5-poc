@@ -1,0 +1,48 @@
+# =============================================================================
+# Kimi K2.5 GCP Deployment - Terraform Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+# Required: Your GCP project ID
+project_id = "your-gcp-project-id"
+
+# GCP Region and Zone
+region = "us-central1"
+zone   = "us-central1-a"
+
+# Instance configuration
+instance_name = "kimi-k25-poc"
+machine_type  = "a3-highgpu-4g"
+gpu_type      = "nvidia-h100-80gb"
+gpu_count     = 4
+
+# Disk configuration
+boot_disk_size_gb  = 200
+model_disk_size_gb = 1000
+
+# Pricing: Use Spot instances for ~70% cost savings
+use_spot = true
+
+# Model configuration
+model_path = "moonshotai/Kimi-K2.5"
+api_port   = "8000"
+
+# Network configuration
+create_vpc = true
+subnet_cidr = "10.0.0.0/24"
+
+# Security: Restrict to your IP in production!
+allowed_ssh_cidrs = ["0.0.0.0/0"]  # Change to ["YOUR_IP/32"]
+allowed_api_cidrs = ["0.0.0.0/0"]  # Change to ["YOUR_IP/32"]
+
+# Optional: HuggingFace token if model requires authentication
+# huggingface_token = "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Environment label
+environment = "poc"
+
+# Optional features
+create_model_bucket = false
+enable_monitoring   = true
